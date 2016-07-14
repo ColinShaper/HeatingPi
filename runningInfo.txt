@@ -1,0 +1,36 @@
+Only if just rebooted Pi:
+sudo mount.cifs //192.168.1.69/share  //nas/sdrive
+sudo mount.cifs //192.168.1.90/Public //nas/wdrive
+
+Python files are at: /home/colin/python
+
+If changed code or parameter files:
+sudo cp -p /nas/sdrive/PiNet/pi92/python/heatPf.py .
+sudo cp -p /nas/sdrive/PiNet/pi92/python/heatPf.ini .
+sudo chown pi:pi heatPf.py
+
+sudo cp -p /nas/sdrive/PiNet/pi92/python/IotSensors.py .
+sudo cp -p /nas/sdrive/PiNet/pi92/python/CjsGen.py .
+libs don't need to change permissions / owners
+
+To run it:
+sudo python3 heatPf.py
+or [run 'sudo ls' to set pwd]
+sudo nohup python3 heatPf.py > heatPfNh3.log &
+
+===========================================================
+
+When running should look like this:
+
+colin@raspberrypi ~/progs/python $ ps aux | grep python
+root     19327  0.0  0.3   5128  1636 pts/0    S    07:33   0:00 sudo nohup python3 heatPf.py
+root     19328  0.7  1.6  12056  7592 pts/0    S    07:33   0:07 python3 heatPf.py
+colin    19340  0.0  0.1   3548   804 pts/0    S+   07:50   0:00 grep --color=auto python
+
+===========================================================
+Note:
+Nothing else needs to be run all the time
+The Perl script /home/colin/progs/perl/log2csv/log2csv.pl
+ is run by the 15 minute shell script
+
+
