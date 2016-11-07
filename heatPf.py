@@ -770,9 +770,14 @@ while True:
 
 exit()
 
+#########################################################
+# version 14/07/16, only change from 11/03/16 = comments
+# c:\progs\python\heatPf
+# s:\PiNet\pi92\python
+#########################################################
+
 # sudo mount.cifs //192.168.1.69/share  //nas/sdrive
 # sudo mount.cifs //192.168.1.90/Public //nas/wdrive
-
 
 # sudo cp -p /nas/sdrive/PiNet/pi92/python/heatPf4.py .
 # sudo cp -p /nas/sdrive/PiNet/pi92/python/heatPf.ini .
@@ -784,6 +789,7 @@ exit()
 
 # sudo cp -p heatPf4.py heatPf.py
 # sudo python3 heatPf.py
+# sudo nohup python3 heatPf.py > heatPfNh3.log &
 
 
 
