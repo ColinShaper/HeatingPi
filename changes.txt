@@ -1,0 +1,10 @@
+Minor changes not pushed to Git.
+
+Updating now, 2018-03-11
+
+Changes:
+Ambigious variable 'str' replaced by 'tempstr' passim
+variable lastHourlyRun added to avoid re-running processes
+Some trace removed from display
+
+

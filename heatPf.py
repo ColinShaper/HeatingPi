@@ -44,10 +44,11 @@ DS18in = DS18B20('DSin', "28-00000418bede")
 DS18out = DS18B20('DSout', "28-00000437d62d")
 
 # set global variables -- most of these get changed later
+lastHourlyRun = 0	# not -1, skip midnight run
 #  from the ini file
 currentTemperature = 20
 switchTemperature = 19.6	# changed later to SWITCH_TEMPERATURE_DAY
-heatingHysteresis = 0.3
+heatingHysteresis = 0.4
 combinedTemp = 0.0
 heatingOnOrOff = 0
 pitemp = 0					# from internal sensors
@@ -308,144 +309,147 @@ def checkTimerzone():
 	global todaysTimesGMT
 	global switchTemperature
 	global oldYearDay
+	global lastHourlyRun
 	changesMade = 0
 	# doesn't need to know if weekend, already taken into account
 	# BUT does need to know if it's a new day, so might be weekend etc.
 	setTimes()
 	if oldYearDay != yearDay:
 		print ("It's a new day!!")
-		str = "T1#%04u-%02u-%02uT%02u:%02u:%02uZ#NewDay:%u" % \
+		readFromIni(0); # read ini to pick up changes, ignore failure
+		tempstr = "T1#%04u-%02u-%02uT%02u:%02u:%02uZ#NewDay:%u" % \
 			(utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second, yearDay)
 		if isBST:
-			str += "#BST"
+			tempstr += "#BST"
 		else:
-			str += "#GMT"
+			tempstr += "#GMT"
 		if isWeekend:
-			str += "#WE"
+			tempstr += "#WE"
 		else:
-			str += "#WD"
+			tempstr += "#WD"
 
 		setDailyTimes()
+		lastHourlyRun  = 0	# skip midnight run
 		if isHoliday:
-			str += "#IsHol:Y"
+			tempstr += "#IsHol:Y"
 		else:
-			str += "#IsHol:n"
+			tempstr += "#IsHol:n"
 		if isVacation:
-			str += "#IsVac:Y"
+			tempstr += "#IsVac:Y"
 		else:
-			str += "#IsVac:n"
+			tempstr += "#IsVac:n"
 		if isSchoolday:
-			str += "#IsSch:Y"
+			tempstr += "#IsSch:Y"
 		else:
-			str += "#IsSch:n"
-		logWrite(str)
+			tempstr += "#IsSch:n"
+		logWrite(tempstr)
 
 		setTodaysHeatingTimes()
 
-		str = "T2#%04u-%02u-%02uT%02u:%02u:%02uZ" % \
+		tempstr = "T2#%04u-%02u-%02uT%02u:%02u:%02uZ" % \
 			(utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second)
-		str += "#TodaysTimesGMT#%02u:%02u" % (todaysTimesGMT[0][0], todaysTimesGMT[0][1])
+		tempstr += "#TodaysTimesGMT#%02u:%02u" % (todaysTimesGMT[0][0], todaysTimesGMT[0][1])
 		if todaysTimesGMT[1][0] > -1:
-			str += "#%02u:%02u" % (todaysTimesGMT[1][0], todaysTimesGMT[1][1])
+			tempstr += "#%02u:%02u" % (todaysTimesGMT[1][0], todaysTimesGMT[1][1])
 		else:
-			str += "#--"
+			tempstr += "#--"
 		if todaysTimesGMT[2][0] > -1:
-			str += "#%02u:%02u" % (todaysTimesGMT[2][0], todaysTimesGMT[2][1])
+			tempstr += "#%02u:%02u" % (todaysTimesGMT[2][0], todaysTimesGMT[2][1])
 		else:
-			str += "#--"
-		str += "#%02u:%02u" % (todaysTimesGMT[3][0], todaysTimesGMT[3][1])
+			tempstr += "#--"
+		tempstr += "#%02u:%02u" % (todaysTimesGMT[3][0], todaysTimesGMT[3][1])
 		
-		logWrite(str)
+		logWrite(tempstr)
 
 	#print (todaysTimesGMT)
 
 	if timerZone < 1:
 		#check if on1 time is reached
-		print ("timerZone < 1 (", timerZone, ")")
+		#print ("timerZone < 1 (", timerZone, ")")
 		checkTime = datetime.datetime(utcDT.year, utcDT.month, utcDT.day, todaysTimesGMT[0][0], todaysTimesGMT[0][1])
-		print (" checkTime (1st entry in todaysTimesGMT):", checkTime)
-		print (" nowTime:", utcDT)
+		#print (" checkTime (1st entry in todaysTimesGMT):", checkTime)
+		#print (" nowTime:", utcDT)
 		diff = checkTime - utcDT
-		print (" diff(0):", diff)
+		#print (" diff(0):", diff)
 		if utcDT > checkTime:
 			if todaysTimesGMT[1][0] > todaysTimesGMT[0][0]:	# todaysTimesGMT[1][0] might be -1
-				print (" Changing to timerZone1 am on")
-				str = "T3#%04u-%02u-%02uT%02u:%02u:%02uZ#Timerzone Changed#1a-on" % \
+				#print (" Changing to timerZone1 am on")
+				tempstr = "T3#%04u-%02u-%02uT%02u:%02u:%02uZ#Timerzone Changed#1a-on" % \
 					(utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second)
-				logWrite(str)
+				logWrite(tempstr)
 				timerZone = 1
 			else:	# it was -1, leave on allday
-				print (" Jumping to timerZone3 pm on")
-				str = "T3#%04u-%02u-%02uT%02u:%02u:%02uZ#Timerzone Changed#3p-on" % \
+				#print (" Jumping to timerZone3 pm on")
+				tempstr = "T3#%04u-%02u-%02uT%02u:%02u:%02uZ#Timerzone Changed#3p-on" % \
 					(utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second)
-				logWrite(str)
+				logWrite(tempstr)
 				timerZone = 3
 			#either way, use 'on' temperature
 			switchTemperature = switch_temperature_day
 			changesMade += 1
 
 	if timerZone == 1:
-		print ("timerZone = 1")
+		#print ("timerZone = 1")
 		# assumes that there is an off1 and on2
 		checkTime = datetime.datetime(utcDT.year, utcDT.month, utcDT.day, todaysTimesGMT[1][0], todaysTimesGMT[1][1])
-		print (" checkTime (2nd entry in todaysTimesGMT):", checkTime)
-		print (" nowTime:", utcDT)
+		#print (" checkTime (2nd entry in todaysTimesGMT):", checkTime)
+		#print (" nowTime:", utcDT)
 		diff = checkTime - utcDT
-		print (" diff(1):", diff)
+		#print (" diff(1):", diff)
 		if utcDT > checkTime:
-			print (" Changing to timerZone2 am off")
-			str = "T3#%04u-%02u-%02uT%02u:%02u:%02uZ#Timerzone Changed#2a-off" % \
+			#print (" Changing to timerZone2 am off")
+			tempstr = "T3#%04u-%02u-%02uT%02u:%02u:%02uZ#Timerzone Changed#2a-off" % \
 				(utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second)
-			logWrite(str)
+			logWrite(tempstr)
 			timerZone = 2
 			switchTemperature = switch_temperature_night
 			changesMade += 1
 
 	if timerZone == 2:
-		print ("timerZone = 2")
+		#print ("timerZone = 2")
 		# assumes that there is an off1 and on2
 		checkTime = datetime.datetime(utcDT.year, utcDT.month, utcDT.day, todaysTimesGMT[2][0], todaysTimesGMT[2][1])
-		print (" checkTime (3rd entry in todaysTimesGMT):", checkTime)
-		print (" nowTime:", utcDT)
+		#print (" checkTime (3rd entry in todaysTimesGMT):", checkTime)
+		#print (" nowTime:", utcDT)
 		diff = checkTime - utcDT
-		print (" diff(2):", diff)
+		#print (" diff(2):", diff)
 		if utcDT > checkTime:
-			print (" Changing to timerZone3 pm on")
-			str = "T3#%04u-%02u-%02uT%02u:%02u:%02uZ#Timerzone Changed#3p-on" % \
+			#print (" Changing to timerZone3 pm on")
+			tempstr = "T3#%04u-%02u-%02uT%02u:%02u:%02uZ#Timerzone Changed#3p-on" % \
 				(utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second)
-			logWrite(str)
+			logWrite(tempstr)
 			timerZone = 3
 			switchTemperature = switch_temperature_day
 			changesMade += 1
 
 	if timerZone == 3:
-		print ("timerZone = 3")
+		#print ("timerZone = 3")
 		# assumes that there is an off1 and on2
 		checkTime = datetime.datetime(utcDT.year, utcDT.month, utcDT.day, todaysTimesGMT[3][0], todaysTimesGMT[3][1])
-		print ("checkTime (3rd entry in todaysTimesGMT):", checkTime)
-		print (" nowTime:", utcDT)
+		#print ("checkTime (3rd entry in todaysTimesGMT):", checkTime)
+		#print (" nowTime:", utcDT)
 		diff = checkTime - utcDT
-		print (" diff(3):", diff)
+		#print (" diff(3):", diff)
 		if utcDT > checkTime:
-			print (" Changing to timerZone4 pm off")
-			str = "T3#%04u-%02u-%02uT%02u:%02u:%02uZ#Timerzone Changed#4p-off" % \
+			#print (" Changing to timerZone4 pm off")
+			tempstr = "T3#%04u-%02u-%02uT%02u:%02u:%02uZ#Timerzone Changed#4p-off" % \
 				(utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second)
-			logWrite(str)
+			logWrite(tempstr)
 			timerZone = 4
 			switchTemperature = switch_temperature_night
 			changesMade += 1
 
 	if timerZone == 4:
-		print ("timerZone = 4")
+		#print ("timerZone = 4")
 		# check when to flip to next day
 		# just need to check when timerZone is 4 and it's after midnight. assumes ontime is > 00:59
 		# don't care about date
-		print ("nowTime:", utcDT)
+		#print ("nowTime:", utcDT)
 		if utcDT.hour == 0 and utcDT.minute > 1:
-			print (" Changing to timerZone0 am off")
-			str = "T3#%04u-%02u-%02uT%02u:%02u:%02uZ#Timerzone Changed#0a-off" % \
+			#print (" Changing to timerZone0 am off")
+			tempstr = "T3#%04u-%02u-%02uT%02u:%02u:%02uZ#Timerzone Changed#0a-off" % \
 				(utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second)
-			logWrite(str)
+			logWrite(tempstr)
 			timerZone = 0
 			switchTemperature = switch_temperature_night
 			setTimes() # set day, weekend etc.
@@ -500,20 +504,20 @@ def readTemp():
 		# check how old it is? if aaSensor.isLate()....
 		currentTemperature = aaSensor.value	# this is the basis, and for initial testing the only value under consideration
 		currentDate = aaSensor.DateAsString()
-		print ("Current aa temperature as read: ", currentTemperature, " at:", currentDate)
+		#print ("Current aa temperature as read: ", currentTemperature, " at:", currentDate)
 
 	else:
 		currentTemperature = aaSensor.value	# this will be the old version, but still ok-ish?
 		currentDate = aaSensor.DateAsString()
-		print ("Using old temperature: ", currentTemperature, " as at:", currentDate)
+		#print ("Using old temperature: ", currentTemperature, " as at:", currentDate)
 
 	acFound = acSensor.ReadFile()
-	if acFound:
-		print ("acFound")
-	else:
-		print ("acNotFound")
+	#if acFound:
+	#	print ("acFound")
+	#else:
+	#	print ("acNotFound")
 
-	print ("readTemp returning", currentTemperature)
+	#print ("readTemp returning", currentTemperature)
 	return currentTemperature
 
 
@@ -526,16 +530,16 @@ def setHeatingOnOrOff(onOrOff):
 
 	p.digital_write(LED_HEATING,onOrOff) # 1 = on
 
-	str = "H#"
+	tempstr = "H#"
 	# write to log: H#datetime#SW-ON
-	str += "%04u-%02u-%02uT" % (heatingChangeTimeUtc.year, heatingChangeTimeUtc.month, heatingChangeTimeUtc.day)
-	str += "%02u:%02u:%02uZ#" % (heatingChangeTimeUtc.hour, heatingChangeTimeUtc.minute, heatingChangeTimeUtc.second)
+	tempstr += "%04u-%02u-%02uT" % (heatingChangeTimeUtc.year, heatingChangeTimeUtc.month, heatingChangeTimeUtc.day)
+	tempstr += "%02u:%02u:%02uZ#" % (heatingChangeTimeUtc.hour, heatingChangeTimeUtc.minute, heatingChangeTimeUtc.second)
 	if onOrOff == 1:
-		str += "SW-ON"
+		tempstr += "SW-ON"
 	else:
-		str += "SW-OFF"
-	logWrite(str)
-	print (str)
+		tempstr += "SW-OFF"
+	logWrite(tempstr)
+	print (tempstr)
 	# update global variables
 	heatingOnOrOff = onOrOff
 
@@ -557,33 +561,33 @@ def readOverrideStatus():
 		if thisval == 'X':
 			if keepOhc != 'X':
 				print ("Change to override from", keepOhc + " to none(X)")
-				str = "H#"
+				tempstr = "H#"
 				# write to log: H#datetime#overridechange
-				str += "%04u-%02u-%02uT" % (heatingChangeTimeUtc.year, heatingChangeTimeUtc.month, heatingChangeTimeUtc.day)
-				str += "%02u:%02u:%02uZ#" % (heatingChangeTimeUtc.hour, heatingChangeTimeUtc.minute, heatingChangeTimeUtc.second)
-				str += "Change to override from " + keepOhc + " to none(X)"
-				logWrite(str)
+				tempstr += "%04u-%02u-%02uT" % (heatingChangeTimeUtc.year, heatingChangeTimeUtc.month, heatingChangeTimeUtc.day)
+				tempstr += "%02u:%02u:%02uZ#" % (heatingChangeTimeUtc.hour, heatingChangeTimeUtc.minute, heatingChangeTimeUtc.second)
+				tempstr += "Change to override from " + keepOhc + " to none(X)"
+				logWrite(tempstr)
 			overrideHeatingChar = 'X'
 			return True
 		if thisval == 'N':
 			if keepOhc != 'N':
 				print ("Change to override from", keepOhc, "to on(N)")
-				str = "H#"
+				tempstr = "H#"
 				# write to log: H#datetime#overridechange
-				str += "%04u-%02u-%02uT" % (heatingChangeTimeUtc.year, heatingChangeTimeUtc.month, heatingChangeTimeUtc.day)
-				str += "%02u:%02u:%02uZ#" % (heatingChangeTimeUtc.hour, heatingChangeTimeUtc.minute, heatingChangeTimeUtc.second)
-				str += "Change to override from " + keepOhc + " to on(N)"
-				logWrite(str)
+				tempstr += "%04u-%02u-%02uT" % (heatingChangeTimeUtc.year, heatingChangeTimeUtc.month, heatingChangeTimeUtc.day)
+				tempstr += "%02u:%02u:%02uZ#" % (heatingChangeTimeUtc.hour, heatingChangeTimeUtc.minute, heatingChangeTimeUtc.second)
+				tempstr += "Change to override from " + keepOhc + " to on(N)"
+				logWrite(tempstr)
 			overrideHeatingChar = 'N'
 			return True
 		if thisval == 'F':
 			if keepOhc != 'F':
-				str = "H#"
+				tempstr = "H#"
 				# write to log: H#datetime#overridechange
-				str += "%04u-%02u-%02uT" % (heatingChangeTimeUtc.year, heatingChangeTimeUtc.month, heatingChangeTimeUtc.day)
-				str += "%02u:%02u:%02uZ#" % (heatingChangeTimeUtc.hour, heatingChangeTimeUtc.minute, heatingChangeTimeUtc.second)
-				str += "Change to override from " + keepOhc + " to off(F)"
-				logWrite(str)
+				tempstr += "%04u-%02u-%02uT" % (heatingChangeTimeUtc.year, heatingChangeTimeUtc.month, heatingChangeTimeUtc.day)
+				tempstr += "%02u:%02u:%02uZ#" % (heatingChangeTimeUtc.hour, heatingChangeTimeUtc.minute, heatingChangeTimeUtc.second)
+				tempstr += "Change to override from " + keepOhc + " to off(F)"
+				logWrite(tempstr)
 				print ("Change to override from", keepOhc, "to off(F)")
 			overrideHeatingChar = 'F'
 			return True
@@ -597,20 +601,20 @@ def determineHeatingOnOff():
 	# if last change (heatingChangeTime < HEATING_CHANGE_DELAY mins, exit
 	td = utcDT - heatingChangeTimeUtc
 	tcompare = td.total_seconds()
-	print ("heating_change_delay: ", HEATING_CHANGE_DELAY, "(mins) ; compare-secs: ", tcompare)
+	#print ("heating_change_delay: ", HEATING_CHANGE_DELAY, "(mins) ; compare-secs: ", tcompare)
 
 	# read sensors... always do for log
-	print ("Continuing after time test to check sensors")
+	#print ("Continuing after time test to check sensors")
 	combinedTemp = float(readTemp())
-	print ("combinedTemp as read: ",combinedTemp)
+	#print ("combinedTemp as read: ",combinedTemp)
 	if (combinedTemp < -90): # error condition
 		print("Can't read aa temperature")
 		return 0
 
 	if ((tcompare / 60) < HEATING_CHANGE_DELAY):
-		print (" Delaying temperature comparison after change")
+		#print (" Delaying temperature comparison after change")
 		return 0
-	print ("Continuing after time test")
+	#print ("Continuing after time test")
 	
 	# read override values from file?
 	# 1 = On, 2 = Off (0 is none), global set in line below
@@ -633,26 +637,26 @@ def determineHeatingOnOff():
 	# if get here, overrideHeatingChar must be 'X' = none
 
 	if heatingOnOrOff == 0:
-		print ("heating is off, so check if should come on")
+		#print ("heating is off, so check if should come on")
 		# ignore time, this is taken into account by switch_temp
 		# Now have heatingHysteresis as well as the 'time hysterisis' above
-		print ("swTemp: ", switchTemperature, " hyst: ", heatingHysteresis," combinedTemp: ", combinedTemp)
+		#print ("swTemp: ", switchTemperature, " hyst: ", heatingHysteresis," combinedTemp: ", combinedTemp)
 		if combinedTemp < switchTemperature:
-			print ("CombinedTemp ", combinedTemp, " now less than switch temp ", switchTemperature, ": turn heating on")
+			#print ("CombinedTemp ", combinedTemp, " now less than switch temp ", switchTemperature, ": turn heating on")
 			setHeatingOnOrOff(1)
-		else:
-			print ("No change: combined temp ", combinedTemp, " is still higher/equal to the switch temp", switchTemperature)
+		#else:
+			#print ("No change: combined temp ", combinedTemp, " is still higher/equal to the switch temp", switchTemperature)
 
 	else:
-		print ("heating is on, so check if should go off")
-		print ("swTemp: ", switchTemperature, " hyst: ", heatingHysteresis, " combinedTcmp: ", combinedTemp)
+		#print ("heating is on, so check if should go off")
+		#print ("swTemp: ", switchTemperature, " hyst: ", heatingHysteresis, " combinedTcmp: ", combinedTemp)
 
 		xx = switchTemperature + heatingHysteresis
 		if (xx < combinedTemp):
-			print ("CombinedTemp ", combinedTemp, "now greater than switchTemp + hysteresis ", xx, ": turn heating off")
+			#print ("CombinedTemp ", combinedTemp, "now greater than switchTemp + hysteresis ", xx, ": turn heating off")
 			setHeatingOnOrOff(0)
-		else:
-			print ("CombinedTemp ", combinedTemp, " is still less than/equal to switchTemp + hysteresis", xx)
+		#else:
+			#print ("CombinedTemp ", combinedTemp, " is still less than/equal to switchTemp + hysteresis", xx)
 
 
 
@@ -663,40 +667,40 @@ def determineHeatingOnOff():
 ###########################################################
 #print (progName, "Start time (UTC): ", utcDT)
 
-str = "B1#%04u-%02u-%02uT%02u:%02u:%02uZ#%s#Startup" % (utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second, progName)
-logWrite(str)
+tempstr = "B1#%04u-%02u-%02uT%02u:%02u:%02uZ#%s#Startup" % (utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second, progName)
+logWrite(tempstr)
 
-str = "B2#%04u-%02u-%02uT%02u:%02u:%02uZ#" % (utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second)
-str += "%04u-%02u-%02u %02u:%02u:%02u" % (nowDT.year, nowDT.month, nowDT.day, nowDT.hour, nowDT.minute, nowDT.second)
+tempstr = "B2#%04u-%02u-%02uT%02u:%02u:%02uZ#" % (utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second)
+tempstr += "%04u-%02u-%02u %02u:%02u:%02u" % (nowDT.year, nowDT.month, nowDT.day, nowDT.hour, nowDT.minute, nowDT.second)
 if isBST:
-	str += "#BST"
+	tempstr += "#BST"
 else:
-	str += "#GMT"
-str += "#YD:%u" % yearDay
+	tempstr += "#GMT"
+tempstr += "#YD:%u" % yearDay
 if isWeekend:
-	str += "#WE"
+	tempstr += "#WE"
 else:
-	str += "#WD"
-logWrite(str)
+	tempstr += "#WD"
+logWrite(tempstr)
 
-str = "B3#%04u-%02u-%02uT%02u:%02u:%02uZ" % \
+tempstr = "B3#%04u-%02u-%02uT%02u:%02u:%02uZ" % \
 	(utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second)
-str += "#TodaysTimesGMT#%02u:%02u" % (todaysTimesGMT[0][0], todaysTimesGMT[0][1])
+tempstr += "#TodaysTimesGMT#%02u:%02u" % (todaysTimesGMT[0][0], todaysTimesGMT[0][1])
 if todaysTimesGMT[1][0] > -1:
-	str += "#%02u:%02u" % (todaysTimesGMT[1][0], todaysTimesGMT[1][1])
+	tempstr += "#%02u:%02u" % (todaysTimesGMT[1][0], todaysTimesGMT[1][1])
 else:
-	str += "#--"
+	tempstr += "#--"
 if todaysTimesGMT[2][0] > -1:
-	str += "#%02u:%02u" % (todaysTimesGMT[2][0], todaysTimesGMT[2][1])
+	tempstr += "#%02u:%02u" % (todaysTimesGMT[2][0], todaysTimesGMT[2][1])
 else:
-	str += "#--"
-str += "#%02u:%02u" % (todaysTimesGMT[3][0], todaysTimesGMT[3][1])
-logWrite(str)
+	tempstr += "#--"
+tempstr += "#%02u:%02u" % (todaysTimesGMT[3][0], todaysTimesGMT[3][1])
+logWrite(tempstr)
 
-str = "B4#%04u-%02u-%02uT%02u:%02u:%02uZ" % \
+tempstr = "B4#%04u-%02u-%02uT%02u:%02u:%02uZ" % \
 	(utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second)
-str += "#TodaysTemps#%.1f#%.1f" % (switch_temperature_day, switch_temperature_night)
-logWrite(str)
+tempstr += "#TodaysTemps#%.1f#%.1f" % (switch_temperature_day, switch_temperature_night)
+logWrite(tempstr)
 
 
 p.init()
@@ -713,40 +717,40 @@ while True:
 	setTimes()
 
 	if (utcDT.second % 15) == 0:		# reconsider this strategy, if the final time.sleep is > 1 sec
-		print ("15sec: +++++", utcDT.second)
+		#print ("15sec: +++++", utcDT.second)
 		p.digital_write(LED_BLINK,1)
 		checkTimerzone() #calls setTimes (again)
 		determineHeatingOnOff()
 
-		str = "L#"
-		str += "%04u-%02u-%02uT" % (utcDT.year, utcDT.month, utcDT.day)
-		str += "%02u:%02u:%02uZ#" % (utcDT.hour, utcDT.minute, utcDT.second)
-		str += pitemp + "#"
-		str += "%.2f#" % DS18in.value
-		str += "%.2f#" % DS18out.value
+		tempstr = "L#"
+		tempstr += "%04u-%02u-%02uT" % (utcDT.year, utcDT.month, utcDT.day)
+		tempstr += "%02u:%02u:%02uZ#" % (utcDT.hour, utcDT.minute, utcDT.second)
+		tempstr += pitemp + "#"
+		tempstr += "%.2f#" % DS18in.value
+		tempstr += "%.2f#" % DS18out.value
 		if timerZone == 1 or timerZone == 3:
-			str += "D#"
+			tempstr += "D#"
 			p.digital_write(LED_TIMER, 1)
 		else:
-			str += "N#"
+			tempstr += "N#"
 			p.digital_write(LED_TIMER, 0)
 		if heatingOnOrOff == 0:
-			str += "h"
+			tempstr += "h"
 		else:
-			str += "H"
-		str += "#W"
-		#str += "#0#x" # 1st=overridestatus, 2nd = placeholder for anything else
-		str += "#%s#x" % overrideHeatingChar	# 1st=overridestatus, 2nd = placeholder for anything else
-		str += "#" + ('A' if aaFound else 'a')
-		str += 'C' if acFound else 'c'
-		str += 'D' if adFound else 'd'
-		str += "#%.2f" % combinedTemp
-		str += "#%.1f" % float(aaSensor.value)
-		str += "#%.1f" % float(acSensor.sensor1.value)
-		str += "#%.1f" % float(adSensor.sensor1.value)
-		print (str)
+			tempstr += "H"
+		tempstr += "#W"
+		#tempstr += "#0#x" # 1st=overridestatus, 2nd = placeholder for anything else
+		tempstr += "#%s#x" % overrideHeatingChar	# 1st=overridestatus, 2nd = placeholder for anything else
+		tempstr += "#" + ('A' if aaFound else 'a')
+		tempstr += 'C' if acFound else 'c'
+		tempstr += 'D' if adFound else 'd'
+		tempstr += "#%.2f" % combinedTemp
+		tempstr += "#%.1f" % float(aaSensor.value)
+		tempstr += "#%.1f" % float(acSensor.sensor1.value)
+		tempstr += "#%.1f" % float(adSensor.sensor1.value)
+		print (tempstr)
 
-		logWrite(str)
+		logWrite(tempstr)
 
 		# can no longer see these anyway...
 		#if aaFound == 'a' or acFound == 'c':
@@ -755,8 +759,8 @@ while True:
 		#	p.digital_write(LED_WARN2, 0)
 
 		if (utcDT.second == 0): # once a minute, too often?] #if 1:
-			netWrite(netfilepathS, piNetfilename, str) # copy log to sdrive 
-			netWrite(netfilepathW, piNetfilename, str)
+			netWrite(netfilepathS, piNetfilename, tempstr) # copy log to sdrive 
+			netWrite(netfilepathW, piNetfilename, tempstr)
 
 		pb1 = p.digital_read(PB1)	# this is the nearest button to the USB port, old piface
 		#t#pb1 = 0	#t#
@@ -768,28 +772,60 @@ while True:
 
 	time.sleep(1)
 
-exit()
+	if utcDT.hour > lastHourlyRun:
+		readFromIni(0); # read ini to pick up changes, ignore failure
+		lastHourlyRun = utcDT.hour
+		# use 'M' temporarily
+		logstr = "M#%04u-%02u-%02uT%02u:%02u:%02uZ" % \
+			(utcDT.year, utcDT.month, utcDT.day, utcDT.hour, utcDT.minute, utcDT.second)
+		logstr += "#%d#%f#%f#%f" % \
+			(lastHourlyRun, switch_temperature_day, switch_temperature_night, switch_temperature_frost)
+		logstr += "#%f#%f" % (heatingHysteresis, switchTemperature)
+		
+		if isBST:
+			logstr += "#BST"
+		else:
+			logstr += "#GMT"
+		if isWeekend:
+			logstr += "#WE"
+		else:
+			logstr += "#WD"
+		if isHoliday:
+			logstr += "#IsHol:Y"
+		else:
+			logstr += "#IsHol:n"
+		if isVacation:
+			logstr += "#IsVac:Y"
+		else:
+			logstr += "#IsVac:n"
+		if isSchoolday:
+			logstr += "#IsSch:Y"
+		else:
+			logstr += "#IsSch:n"
 
-#########################################################
-# version 14/07/16, only change from 11/03/16 = comments
-# c:\progs\python\heatPf
-# s:\PiNet\pi92\python
-#########################################################
+		logWrite(logstr);
+		print (logstr)
+
+
+
+
+
+exit()
 
 # sudo mount.cifs //192.168.1.69/share  //nas/sdrive
 # sudo mount.cifs //192.168.1.90/Public //nas/wdrive
 
-# sudo cp -p /nas/sdrive/PiNet/pi92/python/heatPf4.py .
+# sudo cp -p /nas/sdrive/PiNet/pi92/python/heatPf.py .
 # sudo cp -p /nas/sdrive/PiNet/pi92/python/heatPf.ini .
-# sudo chown pi:pi heatPf4.py
+# sudo cp -p /nas/sdrive/PiNet/pi92/python/heatPf2018.ini .
+# sudo chown pi:pi heatPf.py
 
 # sudo cp -p /nas/sdrive/PiNet/pi92/python/IotSensors.py .
 # sudo cp -p /nas/sdrive/PiNet/pi92/python/CjsGen.py .
 # libs don't need to change permissions / owners
 
-# sudo cp -p heatPf4.py heatPf.py
 # sudo python3 heatPf.py
-# sudo nohup python3 heatPf.py > heatPfNh3.log &
+# sudo nohup python3 heatPf.py &
 
 
 
